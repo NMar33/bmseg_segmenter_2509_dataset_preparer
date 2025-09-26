@@ -50,14 +50,16 @@ writer:
 artifacts:
   stats:
     enabled: true
-    mode: "streaming" # Memory-safe mode is a good default.
-    percentiles: [1, 50, 99]
+    params: 
+      mode: "streaming"
+      percentiles: [1, 50, 99]
   previews:
     enabled: true
-    per_split: 6 # Generate 6 preview images for train and test splits.
-    seed: 42
-    color_rgb: [255, 0, 128] # A nice magenta for this dataset.
-    alpha: 0.4
+    params:
+      per_split: 6 # Generate 6 preview images for each split (train/val/test).
+      seed: 42 # Use the same seed for reproducible preview selection.
+      color_rgb: [0, 200, 255] # A nice cyan color for the mask overlay.
+      alpha: 0.4
 
 # --- 7. Metadata for dataset_map.yaml ---
 # This information will be embedded in the final report file.

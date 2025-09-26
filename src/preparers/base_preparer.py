@@ -102,12 +102,25 @@ class BasePreparer(ABC):
         # Они будут накапливать информацию в цикле и сохранять ее в конце.
         manifest = ManifestBuilder()
         
-        # Conditionally create generators based on config to allow disabling them
+        stats_calc = None
         stats_config = self.artifacts_config.get('stats', {})
-        stats_calc = StatsCalculator(**stats_config) if stats_config.get('enabled', True) else None
+        if stats_config.get('enabled', True):
+            # Просто берем вложенный словарь 'params' и передаем его
+            constructor_params = stats_config.get('params', {})
+            stats_calc = StatsCalculator(**constructor_params)
 
+        preview_gen = None
         preview_config = self.artifacts_config.get('previews', {})
-        preview_gen = PreviewGenerator(**preview_config) if preview_config.get('enabled', True) else None
+        if preview_config.get('enabled', True):
+            constructor_params = preview_config.get('params', {})
+            preview_gen = PreviewGenerator(**constructor_params)
+
+        # # Conditionally create generators based on config to allow disabling them
+        # stats_config = self.artifacts_config.get('stats', {})
+        # stats_calc = StatsCalculator(**stats_config) if stats_config.get('enabled', True) else None
+
+        # preview_config = self.artifacts_config.get('previews', {})
+        # preview_gen = PreviewGenerator(**preview_config) if preview_config.get('enabled', True) else None
 
         # --- 2. DISCOVER AND PROCESS ITEMS ---
         item_generator = self._discover_items(extracted_root)
