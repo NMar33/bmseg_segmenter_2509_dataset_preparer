@@ -17,15 +17,15 @@ import yaml
 from src.acquisition.base_acquirer import BaseAcquirer
 from src.acquisition.http_acquirer import HttpAcquirer
 from src.acquisition.urisc_acquirer import UriscAcquirer
-# from src.acquisition.urisc_acquirer import UriscAcquirer # Будет добавлено позже
 
 from src.preparers.base_preparer import BasePreparer
 from src.preparers.folder_preparer import FolderPreparer
 from src.preparers.volume_preparer import VolumePreparer
 
 # DEV: Каталог (словарь) — это простой и эффективный способ реализовать "фабрику".
-# Он сопоставляет строковое значение из конфига (`strategy: http_archive`) с классом в коде.
-# Это позволяет нам легко добавлять новые стратегии, не меняя основную логику.
+# Он сопоставляет строковое значение из конфига (e.g., `strategy: http_archive`)
+# с классом в коде. Это позволяет нам легко добавлять новые стратегии,
+# не меняя основную логику.
 ACQUIRER_CATALOG = {
     "http_archive": HttpAcquirer,
     "urisc_gdrive_rar": UriscAcquirer,
@@ -75,10 +75,12 @@ def create_preparer(config: Dict[str, Any]) -> BasePreparer:
     """
     # DEV: Мы передаем в конструктор Preparer'а только те части конфига,
     # которые ему действительно нужны. Это хороший принцип — не передавать
-    # весь гигантский конфиг в каждый объект.
+    # весь гигантский конфиг в каждый объект, за исключением случаев, когда
+    # он нужен целиком (как `full_config` для DatasetMap).
     preparation_config = config.get('preparation', {})
     pipeline_config = config.get('processing_pipeline', [])
     writer_config = config.get('writer', {})
+    artifacts_config = config.get('artifacts', {})
 
     preparer_name = preparation_config.get('preparer')
     if not preparer_name:
@@ -92,7 +94,9 @@ def create_preparer(config: Dict[str, Any]) -> BasePreparer:
     return preparer_class(
         prep_config=preparation_config,
         pipeline_config=pipeline_config,
-        writer_config=writer_config
+        writer_config=writer_config,
+        artifacts_config=artifacts_config,
+        full_config=config  # Pass the entire config for the dataset map
     )
 
 
@@ -111,52 +115,51 @@ def main():
     if not config_path.is_file():
         raise FileNotFoundError(f"Configuration file not found at: {config_path}")
 
-    # Load the YAML configuration
+    # Load the YAML configuration with UTF-8 encoding for safety
     with open(config_path, 'r', encoding='utf-8') as f:
         try:
             config = yaml.safe_load(f)
         except yaml.YAMLError as e:
             raise ValueError(f"Error parsing YAML file: {e}") from e
 
-    print("Successfully loaded configuration:")
+    print("--- Configuration Loaded ---")
     pprint.pprint(config)
     print("-" * 50)
-    
-    # Define common paths
+
+    # Define common paths from the configuration
     output_root = Path(config['prepared_root']) / config['dataset_id']
     cache_root = Path(config.get('cache_root', './cache'))
 
     # --- Stage 1: Acquisition ---
-    print("Starting Stage 1: Acquisition")
-    
+    print("--- Stage 1: ACQUISITION ---")
+
     acquirer = create_acquirer(config.get('acquisition', {}))
-    
+
     if acquirer:
         extracted_root = acquirer.run(cache_root=cache_root)
         print(f"Data acquired and available at: {extracted_root}")
-    elif 'source' in config and 'source' in config and 'extracted_root' in config['source']:
+    elif 'source' in config and 'extracted_root' in config['source']:
         # Fallback for local, pre-existing data if no acquirer is defined
         extracted_root = Path(config['source']['extracted_root'])
         print(f"Using pre-existing local data at: {extracted_root}")
         if not extracted_root.is_dir():
-            raise FileNotFoundError(f"The specified 'extracted_root' does not exist: {extracted_root}")
+            raise FileNotFoundError(f"The specified 'source.extracted_root' does not exist: {extracted_root}")
     else:
         raise ValueError("Configuration must contain either an 'acquisition' block "
                          "or a 'source.extracted_root' path to the data.")
-                         
 
     # --- Stage 2: Preparation ---
     print("-" * 50)
-    print("Starting Stage 2: Preparation")
+    print("--- Stage 2: PREPARATION ---")
 
     # Create the appropriate preparer using the factory
     preparer = create_preparer(config)
 
-    # Run the preparation process
+    # Run the main preparation process
     preparer.run(extracted_root=extracted_root, output_root=output_root)
 
     print("-" * 50)
-    print("Process finished successfully.")
+    print(f"Process finished successfully. Prepared dataset is available at: {output_root}")
 
 
 if __name__ == "__main__":

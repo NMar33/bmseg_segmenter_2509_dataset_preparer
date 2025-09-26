@@ -11,8 +11,14 @@ from pathlib import Path
 from tqdm import tqdm
 
 from src.processing.pipeline import Pipeline
-from src.writers.standard_writer import StandardWriter
+from src.writers.base_writer import BaseWriter
 from src.utils import image_utils
+
+# Import artifact generators
+from src.artifacts.manifest import ManifestBuilder
+from src.artifacts.stats_calculator import StatsCalculator
+from src.artifacts.previews import PreviewGenerator
+from src.artifacts.dataset_map import DatasetMapGenerator
 
 
 class BasePreparer(ABC):
@@ -24,10 +30,15 @@ class BasePreparer(ABC):
     2. Reading the raw data (image and mask).
     3. Passing the data through a processing pipeline.
     4. Writing the processed results to disk using a writer.
-    5. (Future) Coordinating the generation of artifacts like manifests and stats.
+    5. Coordinating the generation of all artifacts (manifest, stats, previews, dataset_map).
     """
 
-    def __init__(self, prep_config: Dict[str, Any], pipeline_config: List[Dict[str, Any]], writer_config: Dict[str, Any]):
+    def __init__(self,
+                 prep_config: Dict[str, Any],
+                 pipeline_config: List[Dict[str, Any]],
+                 writer_config: Dict[str, Any],
+                 artifacts_config: Dict[str, Any] = None,
+                 full_config: Dict[str, Any] = None):
         """
         Initializes the preparer.
 
@@ -35,15 +46,24 @@ class BasePreparer(ABC):
             prep_config: Configuration specific to the preparer (e.g., paths).
             pipeline_config: Configuration for the processing pipeline.
             writer_config: Configuration for the writer.
+            artifacts_config: Configuration for all artifact generators.
+            full_config: The complete YAML configuration, needed for the dataset_map.
         """
         self.prep_config = prep_config
         self.pipeline = Pipeline(pipeline_config)
+        self.writer: BaseWriter = self._create_writer(writer_config)
         
-        # DEV: Пока что мы жестко завязываемся на StandardWriter. В будущем можно
-        # сделать фабрику и для writer'ов, если их станет несколько.
-        # Это приемлемое упрощение на данном этапе.
-        self.writer = StandardWriter(**writer_config)
-        
+        self.artifacts_config = artifacts_config or {}
+        self.full_config = full_config
+
+    def _create_writer(self, writer_config: Dict[str, Any]) -> BaseWriter:
+        """Factory method for creating a writer instance."""
+        # DEV: Пока что мы жестко завязываемся на StandardWriter, так как он единственный.
+        # Если в будущем появятся другие writer'ы, здесь будет логика выбора
+        # на основе `writer_config['type']`. Это делает код готовым к расширению.
+        from src.writers.standard_writer import StandardWriter
+        return StandardWriter(**writer_config)
+
     @abstractmethod
     def _discover_items(self, extracted_root: Path) -> Generator[Dict[str, Any], None, None]:
         """
@@ -59,7 +79,7 @@ class BasePreparer(ABC):
                 'split': 'train',
                 'original_id': 'img_001'
             }
-            Or data already loaded into memory:
+            Or data already loaded into memory (for performance with large volume files):
             {
                 'image': np.ndarray,
                 'mask': np.ndarray,
@@ -77,11 +97,19 @@ class BasePreparer(ABC):
         """
         print(f"Starting preparation. Output will be saved to: {output_root}")
         
-        # DEV: Здесь на Шаге 6 мы будем инициализировать генераторы артефактов.
-        # manifest_builder = ManifestBuilder()
-        # stats_calculator = StatsCalculator()
-        # preview_generator = PreviewGenerator()
+        # --- 1. INITIALIZE ARTIFACT GENERATORS ---
+        # DEV: Мы создаем генераторы артефактов в самом начале.
+        # Они будут накапливать информацию в цикле и сохранять ее в конце.
+        manifest = ManifestBuilder()
+        
+        # Conditionally create generators based on config to allow disabling them
+        stats_config = self.artifacts_config.get('stats', {})
+        stats_calc = StatsCalculator(**stats_config) if stats_config.get('enabled', True) else None
 
+        preview_config = self.artifacts_config.get('previews', {})
+        preview_gen = PreviewGenerator(**preview_config) if preview_config.get('enabled', True) else None
+
+        # --- 2. DISCOVER AND PROCESS ITEMS ---
         item_generator = self._discover_items(extracted_root)
         
         # DEV: Превращаем генератор в список, чтобы получить общее количество для tqdm.
@@ -97,10 +125,7 @@ class BasePreparer(ABC):
         
         for item_context in tqdm(items, desc="Processing items"):
             try:
-                # --- 1. Read Data ---
-                # DEV: Это ключевое изменение для поддержки VolumePreparer.
-                # Мы проверяем флаг 'is_loaded'. Если он есть, мы берем данные
-                # прямо из item_context. Иначе — читаем с диска по путям.
+                # Read Data
                 if item_context.get('is_loaded', False):
                     image = item_context.get('image')
                     mask = item_context.get('mask')
@@ -114,10 +139,10 @@ class BasePreparer(ABC):
                     image = image_utils.read_gray_safe(image_path)
                     mask = image_utils.read_gray_safe(mask_path) if mask_path and mask_path.exists() else None
 
-                # --- 2. Process Data ---
+                # Process Data
                 processed_items = self.pipeline.process(image, mask, item_context)
 
-                # --- 3. Write Data ---
+                # Write Data and Update Artifacts
                 for processed in processed_items:
                     output_info = self.writer.write(
                         image=processed['image'], 
@@ -126,28 +151,43 @@ class BasePreparer(ABC):
                         output_root=output_root
                     )
                     
-                    # DEV: Здесь на Шаге 6 мы будем обновлять артефакты.
-                    # Например, передавать информацию о сохраненных файлах в manifest.
-                    # manifest_builder.add_entry(
-                    #     original_context=item_context,
-                    #     processed_context=processed['context'],
-                    #     output_info=output_info
-                    # )
-                    # stats_calculator.update(processed['image'], processed.get('mask'))
+                    # Update artifacts with info from this specific processed item
+                    manifest.add_entry(
+                        original_context=item_context,
+                        processed_context=processed['context'],
+                        output_info=output_info
+                    )
+                    if stats_calc:
+                        stats_calc.update(processed['image'], processed.get('mask'), processed['context']['split'])
+                    if preview_gen:
+                        preview_gen.add_candidate(output_info, processed['context']['split'])
 
             except (FileNotFoundError, IOError) as e:
-                # DEV: Ловим ожидаемые ошибки чтения файлов и просто пропускаем элемент,
-                # выводя предупреждение. Это делает пайплайн более устойчивым.
                 print(f"\n[WARNING] Skipping item '{item_context.get('original_id')}' due to a file error: {e}")
             except Exception as e:
-                # DEV: Ловим все остальные, более серьезные ошибки. Выводим ошибку,
-                # но продолжаем работу со следующим элементом.
+                import traceback
                 print(f"\n[ERROR] Failed to process item '{item_context.get('original_id')}'. Error: {e}")
-                # Для отладки можно добавить: import traceback; traceback.print_exc()
+                # DEV: Включаем traceback для облегчения отладки непредвиденных ошибок.
+                traceback.print_exc()
 
-        # DEV: Здесь на Шаге 6 мы будем сохранять финальные артефакты.
-        # print("Saving artifacts...")
-        # manifest_builder.save(output_root / "manifest.jsonl")
-        # dataset_map_generator.generate(output_root, stats_calculator.get_results(), ...)
+        # --- 3. SAVE FINAL ARTIFACTS ---
+        print("\nFinalizing and saving artifacts...")
+        
+        # Save the detailed manifest of all processed files
+        manifest.save(output_root / "manifest.jsonl")
+
+        # Calculate final statistics from collected data
+        final_stats = stats_calc.calculate() if stats_calc else {}
+        
+        # Generate visual previews from a sample of saved files
+        if preview_gen:
+            preview_gen.generate(output_root)
+            
+        # The final act: create the main dataset_map.yaml file
+        if self.full_config:
+            map_gen = DatasetMapGenerator(self.full_config)
+            map_gen.generate(output_root, final_stats)
+        else:
+            print("[WARNING] full_config was not provided to the preparer. Skipping dataset_map.yaml generation.")
         
         print("\nPreparation finished successfully.")

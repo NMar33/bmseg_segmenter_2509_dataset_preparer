@@ -1,0 +1,74 @@
+# ====================================================================
+# Configuration for preparing the ISBI 2012 EM Segmentation dataset
+# This version performs no processing (raw slices from volumes).
+# ====================================================================
+
+# --- 1. Basic Info ---
+# Defines the unique name for this prepared dataset version.
+dataset_id: "isbi2012_v1_raw"
+# Root directory where the final prepared dataset will be stored.
+prepared_root: "./prepared_data"
+# Directory for caching downloaded and extracted raw files.
+cache_root: "./cache"
+
+# --- 2. Acquisition: How to get the raw data ---
+# This block tells the program to download a standard zip archive from a URL.
+acquisition:
+  strategy: http_archive
+  url: "https://downloads.imagej.net/ISBI-2012-challenge.zip"
+
+# --- 3. Preparation: How to find files in the raw data ---
+# This block configures the 'volume' preparer to find the 3D TIFF stacks,
+# which it will then slice into 2D frames.
+preparation:
+  preparer: volume
+  splits:
+    train:
+      volume: "train-volume.tif"
+      labels: "train-labels.tif"
+    test:
+      volume: "test-volume.tif"
+      labels: "test-labels.tif"
+
+# --- 4. Processing: How to transform the data ---
+# The pipeline is empty, which means the default 'Passthrough' transform will be used.
+# No geometric or intensity changes will be applied to the data.
+processing_pipeline: []
+
+# --- 5. Writer: How to save the processed data ---
+# Defines the output format for images and masks.
+writer:
+  image_format:
+    ext: .tif
+    dtype: uint16
+  mask_format:
+    ext: .png
+    dtype: uint8
+
+# --- 6. Artifacts: How to document the prepared dataset ---
+# This block controls the generation of the "dataset passport".
+artifacts:
+  stats:
+    enabled: true
+    mode: "streaming" # Memory-safe mode is a good default.
+    percentiles: [1, 50, 99]
+  previews:
+    enabled: true
+    per_split: 6 # Generate 6 preview images for train and test splits.
+    seed: 42
+    color_rgb: [255, 0, 128] # A nice magenta for this dataset.
+    alpha: 0.4
+
+# --- 7. Metadata for dataset_map.yaml ---
+# This information will be embedded in the final report file.
+citation:
+  title: "ISBI Challenge: Segmentation of Neuronal Structures in EM Stacks"
+  authors: ["Ignacio Arganda-Carreras", "H. Sebastian Seung", "et al."]
+  year: 2012
+  homepage: "http://brainiac2.mit.edu/isbi_challenge/"
+
+notes:
+  - "This configuration slices the original 3D TIFF volumes into individual 2D frames."
+  - "No resizing, cropping, or other geometric transformations are applied."
+  - "The dataset is split into 'train' and 'test' sets as provided originally."
+  - "Output images are saved as 16-bit TIFF files, and masks are 8-bit PNG files."

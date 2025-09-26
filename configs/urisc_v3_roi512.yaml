@@ -1,0 +1,77 @@
+# ====================================================================
+# Configuration for preparing the U-RISC dataset with SmartROI tiling
+# ====================================================================
+
+# --- 1. Basic Info ---
+# Defines the unique name for this prepared dataset version.
+dataset_id: "urisc_v2_roi512_full_auto"
+# Root directory where the final prepared dataset will be stored.
+prepared_root: "./prepared_data"
+# Directory for caching downloaded and extracted raw files.
+cache_root: "./cache"
+
+# --- 2. Acquisition: How to get the raw data ---
+# This block tells the program to download and unpack the U-RISC dataset automatically.
+acquisition:
+  strategy: urisc_gdrive_rar
+  gdrive_url: "https://drive.google.com/drive/folders/14u-TMK8kDJWMvZbr7KTQKwHpFqe9lrYU"
+
+# --- 3. Preparation: How to find files in the raw data ---
+# This block configures the 'folder' preparer to find images and masks
+# within the structure created by the acquirer.
+preparation:
+  preparer: folder
+  img_base_rel: "imgs/imgs/Track1"
+  msk_base_rel: "label/label/Track1"
+  splits: ["train", "val", "test"]
+
+# --- 4. Processing: How to transform the data ---
+# This is the core of the experiment. It defines a pipeline of transformations.
+processing_pipeline:
+  - name: SmartROI
+    params:
+      tile_size: 512
+      stride: 512 # Non-overlapping tiles for simplicity.
+      max_tiles_per_image: 1 # Extract up to 2 tiles from each source image.
+      seed: 42 # For reproducible random selection.
+      selection_strategy:
+        # Step 1: Try to find tiles where the mask covers at least 5% of the area.
+        - type: positive_fraction
+          min_fraction: 0.1
+        # Step 2: If no such tiles are found, fall back to picking any random tile.
+        - type: random
+
+# --- 5. Writer: How to save the processed data ---
+# Defines the output format for images and masks.
+writer:
+  image_format: { ext: .tif, dtype: uint16 }
+  mask_format: { ext: .png, dtype: uint8 }
+
+# --- 6. Artifacts: How to document the prepared dataset ---
+# This block controls the generation of the "dataset passport".
+artifacts:
+  stats:
+    enabled: true
+    mode: "streaming" # Memory-safe mode for calculating statistics.
+    percentiles: [1, 50, 99]
+  previews:
+    enabled: true
+    per_split: 6 # Generate 6 preview images for each split (train/val/test).
+    seed: 42 # Use the same seed for reproducible preview selection.
+    color_rgb: [0, 200, 255] # A nice cyan color for the mask overlay.
+    alpha: 0.4
+
+# --- 7. Metadata for dataset_map.yaml ---
+# This information will be embedded in the final report file.
+citation:
+  title: "U-RISC: A Benchmark for Urinary Sediment Particle Detection and Classification"
+  authors: ["Zhang, X., Wang, Y., et al."]
+  year: 2022
+  url: "https://www.cv-foundation.org/openaccess/content_cvpr_2022_workshops/w/cvmi/html/Zhang_U-RISC_A_Benchmark_for_Urinary_Sediment_Particle_Detection_and_Classification_CVPRW_2022_paper.html"
+  homepage: "https://miccai.grand-challenge.org/U-RISC/"
+
+notes:
+  - "This configuration extracts 1 tile of size 512x512 from each source image."
+  - "The tile selection prioritizes tiles with at least 10% mask coverage."
+  - "Source data is automatically downloaded from Google Drive and extracted from RAR archives."
+  - "Output images are saved as 16-bit TIFF files, and masks are 8-bit PNG files."
