@@ -5,15 +5,17 @@ The Pipeline class orchestrates the execution of a series of transformations.
 from typing import List, Dict, Any
 import numpy as np
 
+
 # DEV: Мы делаем "фабрику" прямо здесь, чтобы не усложнять run_preparation.py.
 # В будущем, если трансформаций станет очень много, можно вынести это в отдельный
 # модуль `factories.py`.
 from src.processing import transforms
 
+
 TRANSFORM_CATALOG = {
     "Passthrough": transforms.Passthrough,
-    # "Resize": transforms.Resize,       <- Будет добавлено на Шаге 4
-    # "SmartROI": transforms.SmartROI,   <- Будет добавлено на Шаге 4
+    "Resize": transforms.Resize,       # <-- ДОБАВЛЕНО
+    "SmartROI": transforms.SmartROI,   # <-- ДОБАВЛЕНО
 }
 
 

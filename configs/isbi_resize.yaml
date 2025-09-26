@@ -1,0 +1,28 @@
+# configs/isbi_resize.yaml
+
+dataset_id: "isbi2012_v1_resize512"
+prepared_root: "./prepared_data"
+cache_root: "./cache"
+
+acquisition:
+  strategy: http_archive
+  url: "https://downloads.imagej.net/ISBI-2012-challenge.zip"
+
+preparation:
+  preparer: volume
+  splits:
+    train: { volume: "train-volume.tif", labels: "train-labels.tif" }
+    test:  { volume: "test-volume.tif", labels: "test-labels.tif" }
+
+# Используем Resize
+processing_pipeline:
+  - name: Resize
+    params:
+      width: 512
+      height: 256
+      interpolation_img: "area"
+      interpolation_mask: "nearest"
+
+writer:
+  image_format: { ext: .tif, dtype: uint16 }
+  mask_format: { ext: .png, dtype: uint8 }

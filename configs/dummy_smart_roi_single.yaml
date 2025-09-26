@@ -1,0 +1,39 @@
+# configs/dummy_smart_roi_single.yaml
+
+dataset_id: "dummy_v2_roi512_pos10"
+prepared_root: "tmp/dummy_dataset/prepared"
+cache_root: "tmp/dummy_dataset/cache" # Добавим на будущее
+
+source:
+  # Путь к "сырым" данным, которые мы создали
+  extracted_root: "tmp/dummy_dataset/raw"
+
+preparation:
+  preparer: folder
+  # Пути относительно extracted_root
+  img_base_rel: "images"
+  msk_base_rel: "masks"
+  splits: ['train', 'val']
+
+# --- Изменения здесь ---
+processing_pipeline:
+  - name: SmartROI
+    params:
+      tile_size: 512
+      stride: 256 # Делаем тайлы с перекрытием, чтобы было больше кандидатов на выбор
+      max_tiles_per_image: 1 # Извлекаем только один, самый лучший, тайл
+      seed: 42 # Для воспроизводимости случайного выбора
+      selection_strategy:
+        # Шаг 1: Попробовать найти "хороший" тайл
+        - type: positive_fraction
+          min_fraction: 0.1 # Искать тайлы, где маска занимает >= 10% площади
+        # Шаг 2: Если на шаге 1 ничего не найдено, взять любой случайный
+        - type: random
+
+writer:
+  image_format:
+    ext: .tif
+    dtype: uint16
+  mask_format:
+    ext: .png
+    dtype: uint8
