@@ -1,0 +1,17 @@
+# Core libraries
+numpy
+pyyaml
+opencv-python-headless  # Headless version is better for servers
+imageio
+tifffile
+tqdm
+
+# For configuration and validation
+pydantic
+
+# For downloading datasets (will be needed later)
+requests
+gdown
+# DEV: rarfile нужен для программной распаковки .rar, если мы не хотим зависеть от unrar в системе
+# pip install rarfile; sudo apt-get install unrar
+rarfile
