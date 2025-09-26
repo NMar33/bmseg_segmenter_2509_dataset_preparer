@@ -1,0 +1,33 @@
+dataset_id: "urisc_v2_roi512_full_auto"
+prepared_root: "./prepared_data"
+cache_root: "./cache"
+
+# Блок, который автоматически скачает и распакует U-RISC
+acquisition:
+  strategy: urisc_gdrive_rar
+  gdrive_url: "https://drive.google.com/drive/folders/14u-TMK8kDJWMvZbr7KTQKwHpFqe9lrYU"
+
+# Блок подготовки, работающий с результатом Acquirer'а
+preparation:
+  preparer: folder
+  img_base_rel: "imgs/imgs/Track1"
+  msk_base_rel: "label/label/Track1"
+  splits: ["train", "val", "test"]
+
+# Блок обработки с SmartROI
+processing_pipeline:
+  - name: SmartROI
+    params:
+      tile_size: 512
+      stride: 512 # Используем непересекающиеся тайлы для простоты
+      max_tiles_per_image: 2 # Берем до 2 тайлов с картинки
+      seed: 42
+      selection_strategy:
+        - type: positive_fraction
+          min_fraction: 0.05 # Ищем тайлы с маской > 5%
+        - type: random
+
+# Блок записи
+writer:
+  image_format: { ext: .tif, dtype: uint16 }
+  mask_format: { ext: .png, dtype: uint8 }

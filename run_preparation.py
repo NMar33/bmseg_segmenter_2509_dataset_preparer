@@ -16,6 +16,7 @@ import yaml
 # Это центральная точка, где регистрируются все "строительные блоки" системы.
 from src.acquisition.base_acquirer import BaseAcquirer
 from src.acquisition.http_acquirer import HttpAcquirer
+from src.acquisition.urisc_acquirer import UriscAcquirer
 # from src.acquisition.urisc_acquirer import UriscAcquirer # Будет добавлено позже
 
 from src.preparers.base_preparer import BasePreparer
@@ -27,7 +28,7 @@ from src.preparers.volume_preparer import VolumePreparer
 # Это позволяет нам легко добавлять новые стратегии, не меняя основную логику.
 ACQUIRER_CATALOG = {
     "http_archive": HttpAcquirer,
-    # "urisc_gdrive_rar": UriscAcquirer,
+    "urisc_gdrive_rar": UriscAcquirer,
 }
 
 PREPARER_CATALOG = {
