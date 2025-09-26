@@ -12,6 +12,7 @@ import numpy as np
 import tifffile as tiff
 
 from src.config import SETTINGS
+from src.utils.file_utils import create_dir_if_not_exists
 
 
 def read_gray_safe(path: Path) -> np.ndarray:

@@ -1,0 +1,25 @@
+
+dataset_id: "dummy_v1_realistic"
+prepared_root: "tmp/dummy_dataset/prepared"
+
+source:
+  # Path to the raw data we just created
+  extracted_root: "tmp/dummy_dataset/raw"
+
+preparation:
+  preparer: folder
+  # Paths relative to extracted_root
+  img_base_rel: "images"
+  msk_base_rel: "masks"
+  splits: ['train', 'val']
+
+# Empty pipeline will default to Passthrough
+processing_pipeline: []
+
+writer:
+  image_format:
+    ext: .tif
+    dtype: uint16
+  mask_format:
+    ext: .png
+    dtype: uint8

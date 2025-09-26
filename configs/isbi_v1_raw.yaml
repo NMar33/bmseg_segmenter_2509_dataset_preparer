@@ -1,0 +1,33 @@
+# configs/isbi_v1_raw.yaml
+
+dataset_id: "isbi2012_v1_raw"
+prepared_root: "./prepared_data"
+cache_root: "./cache" # Директория для скачанных и распакованных данных
+
+# Блок, описывающий, как получить "сырые" данные
+acquisition:
+  strategy: http_archive
+  url: "https://downloads.imagej.net/ISBI-2012-challenge.zip"
+
+# Блок, описывающий, как работать с уже скачанными данными
+preparation:
+  preparer: volume
+  # Файлы, которые VolumePreparer будет искать в папке, возвращенной Acquirer'ом
+  splits:
+    train:
+      volume: "train-volume.tif"
+      labels: "train-labels.tif"
+    test:
+      volume: "test-volume.tif"
+      labels: "test-labels.tif"
+
+# Пустой pipeline, будет использован Passthrough
+processing_pipeline: []
+
+writer:
+  image_format:
+    ext: .tif
+    dtype: uint16
+  mask_format:
+    ext: .png
+    dtype: uint8
