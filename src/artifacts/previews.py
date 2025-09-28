@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 import imageio.v2 as iio
 import numpy as np
+import cv2
 
 from src.utils import image_utils
 
